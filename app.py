@@ -70,12 +70,15 @@ ANALOG_INPUT_MAP = {
 #   - Spacing: 6 bits apart (suggests 1 bit for state + 5 bits metadata per output)
 #
 # EVIDENCE:
-#   - When DO00,DO01,DO02 were ON: positions [1, 33, 163, 169, 175] had '1'
+#   - When DO00, DO01, DO02 were ON: positions [1, 33, 163, 169, 175] had '1'
 #   - When DO02 turned OFF: position 175 changed from '1' to '0'
+#   - When DO03 was toggled ON in tests: position 181 changed from '0' to '1'
+#     (sample captures show DO00,DO01,DO03 ON while DO02 was OFF — 175=0, 181=1)
 #   - Positions 1 and 33 appear to be other system flags (not DO00-DO11)
 #
 # ASSUMPTIONS & UNCERTAINTIES:
-#   - Only tested with DO00, DO01, DO02 - pattern for DO03-DO11 is extrapolated
+#   - DO00-DO03 have been empirically tested and follow the 6-bit spacing
+#     pattern; DO04-DO11 remain extrapolated from that pattern
 #   - Unknown what the 5 bits between outputs represent (status? metadata?)
 #   - Line 1 positions (1,7) for DO10-DO11 follow same spacing but untested
 #
