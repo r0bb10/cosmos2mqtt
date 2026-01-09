@@ -472,7 +472,7 @@ class HomeAssistantPublisher:
             payload = {
                 'name': data['name'].title(),
                 'unique_id': f"cosmos2mqtt_{normalized_id}",
-                'object_id': f"cosmos_{normalized_id}",
+                'default_entity_id': f"sensor.cosmos_{normalized_id}",
                 'state_topic': state_topic,
                 'unit_of_measurement': '°C',
                 'device_class': 'temperature',
@@ -514,7 +514,7 @@ class HomeAssistantPublisher:
             payload = {
                 'name': data['name'].title(),
                 'unique_id': f"cosmos2mqtt_{normalized_id}",
-                'object_id': f"cosmos_{normalized_id}",
+                'default_entity_id': f"binary_sensor.cosmos_{normalized_id}",
                 'state_topic': state_topic,
                 'payload_on': 'ON',
                 'payload_off': 'OFF',
