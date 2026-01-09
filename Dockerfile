@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+ENV TZ=Europe/Rome
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+ENV PYTHONUNBUFFERED=1
+ENV DEOS_HOST=localhost
+ENV MQTT_BROKER=localhost
+ENV MQTT_USER=user
+ENV MQTT_PASS=password
+ENV HEALTH_PORT=8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["python", "-c", "import urllib.request,sys;\ntry:\n r=urllib.request.urlopen('http://127.0.0.1:8080/ready',timeout=5); sys.exit(0 if r.status==200 else 1)\nexcept Exception:\n sys.exit(1)"]
+
+CMD ["python", "app.py"]

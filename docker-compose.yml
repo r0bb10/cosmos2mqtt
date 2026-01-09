@@ -1,0 +1,16 @@
+services:
+  cosmos2mqtt:
+    image: ghcr.io/r0bb10/cosmos2mqtt:latest
+    container_name: cosmos2mqtt
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Rome  # Set your timezone
+      - DEOS_HOST=192.168.1.100  # Change to your COSMOS controller IP
+      - MQTT_BROKER=192.168.1.101  # Change to your MQTT broker IP
+      - MQTT_PORT=1883
+      - MQTT_USER=your_mqtt_username  # Change to your MQTT username
+      - MQTT_PASS=your_mqtt_password  # Change to your MQTT password
+      - POLL_INTERVAL=5  # Seconds between polls
+      - EXPOSED_IDS=  # Comma-separated entity IDs to expose (e.g., "AI00,AI01,DO02") or empty for all
+      - DEBUG=no  # yes/no - show per-poll sensor values in logs when 'yes'
+      - HEALTH_PORT=8080  # Internal health HTTP port (used by Docker HEALTHCHECK)
