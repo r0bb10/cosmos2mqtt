@@ -7,8 +7,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 
+# Timezone
 ENV TZ=Europe/Rome
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Embed build commit into image (set by CI via --build-arg COMMIT_SHA). Default 'local' for local builds.
+ARG COMMIT_SHA=local
+ENV COMMIT_SHA=${COMMIT_SHA}
+LABEL org.opencontainers.image.revision=${COMMIT_SHA}
 
 ENV PYTHONUNBUFFERED=1
 ENV DEOS_HOST=localhost

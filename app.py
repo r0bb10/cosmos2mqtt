@@ -607,6 +607,11 @@ def run_daemon(cosmos: CosmosClient, interval: int) -> None:
 
             # mark daemon as started (liveness readiness)
             health_status.daemon_started = True
+
+        # Log embedded commit SHA (set at build time via --build-arg COMMIT_SHA)
+        commit = os.getenv('COMMIT_SHA', 'local')
+        logger.info("Container Version: %s", commit)
+
         logger.info("Starting Daemon (polling)")
 
         iteration = 0
