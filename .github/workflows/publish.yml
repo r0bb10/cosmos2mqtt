@@ -2,8 +2,12 @@ name: Build and publish to GHCR
 
 on:
   push:
+    # Run on tag pushes and on pushes to main
     tags:
       - '*'
+    branches:
+      - main
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -19,6 +23,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set build tags (short commit SHA)
+        id: vars
+        run: |
+          repo="$GITHUB_REPOSITORY"
+          owner="${repo%%/*}"
+          short=$(git rev-parse --short HEAD)
+          echo "short_sha=$short" >> $GITHUB_OUTPUT
+
+          tags="ghcr.io/${owner}/cosmos2mqtt:${short}\nghcr.io/${owner}/cosmos2mqtt:latest"
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tagname=${GITHUB_REF#refs/tags/}
+            tags="$tags\nghcr.io/${owner}/cosmos2mqtt:${tagname}\nghcr.io/${owner}/cosmos2mqtt:stable"
+          fi
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$tags" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -26,7 +51,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR (GITHUB_TOKEN)
+      - name: Create and use buildx builder
+        run: |
+          docker buildx create --name mybuilder --driver docker-container --use || true
+          docker buildx inspect --bootstrap
+
+      - name: Log in to GHCR (use GITHUB_TOKEN)
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -40,6 +70,4 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/cosmos2mqtt:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/cosmos2mqtt:latest
+          tags: ${{ steps.vars.outputs.tags }}
