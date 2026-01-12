@@ -66,8 +66,22 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v4
         with:
+          builder: mybuilder
           context: .
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.vars.outputs.tags }}
+          build-args: |
+            COMMIT_SHA=${{ steps.vars.outputs.short_sha }}
+          provenance: false
+          sbom: false
+          outputs: |
+            type=registry
+
+      - name: Inspect pushed manifest
+        run: |
+          echo "Inspecting pushed manifest for platforms"
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/cosmos2mqtt:${{ steps.vars.outputs.short_sha }} || true
+        env:
+          DOCKER_CLI_EXPERIMENTAL: enabled
