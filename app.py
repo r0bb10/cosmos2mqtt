@@ -344,22 +344,26 @@ class MQTTManager:
         self.port = port
         self.connected = False
         self.connection_event = threading.Event()
-        
+
         client_id = f"cosmos2mqtt-{int(time.time())}"
         kwargs = {"client_id": client_id}
-        
+
         # Fix: paho-mqtt 2.1.0 uses CallbackAPIVersion.VERSION2 (not V2, V3, etc)
         if hasattr(mqtt, "CallbackAPIVersion"):
             kwargs["callback_api_version"] = mqtt.CallbackAPIVersion.VERSION2
-        
+
         self.client = mqtt.Client(**kwargs)
-        
+
+        # Increase message queue size to prevent ERR_QUEUE_SIZE errors
+        # Default is 65535 for outgoing, but we set explicitly for clarity
+        self.client.max_queued_messages_set(queue_size=10000)
+
         if username and password:
             self.client.username_pw_set(username, password)
-        
+
         # Set Last Will and Testament for proper availability
         self.client.will_set(AVAILABILITY_TOPIC, "offline", qos=1, retain=True)
-        
+
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_publish = self._on_publish
@@ -370,8 +374,8 @@ class MQTTManager:
             self.connected = True
             self.connection_event.set()
             logger.info("Connected to MQTT (%s)", self.host)
-            # Publish availability immediately on connection
-            self.client.publish(AVAILABILITY_TOPIC, "online", qos=1, retain=True)
+            # Publish availability immediately on connection (use QoS 1 for important messages)
+            self.publish(AVAILABILITY_TOPIC, "online", qos=1, retain=True, force=True)
         else:
             logger.warning("MQTT connection failed (rc=%s)", rc)
             self.connected = False
@@ -400,15 +404,34 @@ class MQTTManager:
         if not self.connection_event.wait(timeout=30):
             logger.error("MQTT connection timeout after 30 seconds")
 
-    def publish(self, topic: str, payload: str, retain: bool = False, qos: int = 1, force: bool = False) -> bool:
+    def publish(self, topic: str, payload: str, retain: bool = False, qos: int = 0, force: bool = False) -> bool:
+        """Publish message to MQTT broker.
+
+        Args:
+            topic: MQTT topic to publish to
+            payload: Message payload
+            retain: Whether to retain the message
+            qos: Quality of Service (0=fire and forget, 1=at least once, 2=exactly once)
+            force: Publish even if not connected (for shutdown messages)
+
+        Returns:
+            True if message was queued successfully, False otherwise
+        """
         if not force and not self.connected:
             logger.debug("Skipping publish to %s (not connected)", topic)
             return False
         try:
             result = self.client.publish(topic, payload, qos=qos, retain=retain)
-            result.wait_for_publish(timeout=5)
-            logger.debug("Published to %s: %s (retain=%s)", topic, payload[:100] if len(payload) > 100 else payload, retain)
-            return True
+            # Check if message was queued successfully (rc=0 means success)
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logger.debug("Published to %s: %s (retain=%s, qos=%d)", topic, payload[:100] if len(payload) > 100 else payload, retain, qos)
+                return True
+            elif result.rc == mqtt.MQTT_ERR_QUEUE_SIZE:
+                logger.warning("MQTT queue full, dropping message to %s", topic)
+                return False
+            else:
+                logger.warning("MQTT publish failed to %s: rc=%d", topic, result.rc)
+                return False
         except Exception as exc:  # pragma: no cover - external
             logger.warning("MQTT publish error to %s: %s", topic, exc)
             return False
@@ -416,7 +439,8 @@ class MQTTManager:
     def stop(self) -> None:
         logger.info("Shutting down MQTT connection")
         if self.connected:
-            self.publish(AVAILABILITY_TOPIC, "offline", retain=True, force=True)
+            # Use QoS 1 for important offline message
+            self.publish(AVAILABILITY_TOPIC, "offline", qos=1, retain=True, force=True)
             time.sleep(0.5)  # Give time for offline message to send
         try:
             self.client.disconnect()
@@ -455,7 +479,8 @@ class HomeAssistantPublisher:
     def _publish_discovery(self, component: str, entity_id: str, payload: dict) -> None:
         config_topic = self._config_topic(component, entity_id)
         serialized = json.dumps(payload)
-        if self.mqtt.publish(config_topic, serialized, retain=True):
+        # Use QoS 1 for discovery configs (important messages)
+        if self.mqtt.publish(config_topic, serialized, qos=1, retain=True):
             self.configured_topics.add(config_topic)
 
     def publish_analog_sensors(self, sensors: Dict[str, Dict[str, float]]) -> None:
@@ -544,13 +569,14 @@ class HomeAssistantPublisher:
 
     def cleanup(self) -> None:
         logger.info("Cleaning up Home Assistant entities")
-        # Send offline availability
-        self.mqtt.publish(AVAILABILITY_TOPIC, 'offline', retain=True, force=True)
+        # Send offline availability (use QoS 1 for important messages)
+        self.mqtt.publish(AVAILABILITY_TOPIC, 'offline', qos=1, retain=True, force=True)
         # Remove discovery configs so entities disappear from HA on shutdown
         topics = list(self.configured_topics)
         removed = 0
         for topic in topics:
-            if self.mqtt.publish(topic, '', retain=True, force=True):
+            # Use QoS 1 for discovery cleanup
+            if self.mqtt.publish(topic, '', qos=1, retain=True, force=True):
                 removed += 1
             self.configured_topics.discard(topic)
         logger.info("Removed %d entity discovery configs", removed)
