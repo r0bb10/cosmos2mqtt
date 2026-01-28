@@ -380,9 +380,9 @@ class MQTTManager:
             logger.warning("MQTT connection failed (rc=%s)", rc)
             self.connected = False
 
-    def _on_disconnect(self, client, userdata, rc, properties=None):
+    def _on_disconnect(self, client, userdata, disconnect_flags, rc, properties=None):
         if rc != 0:
-            logger.warning("Disconnected from MQTT (rc=%s), reconnecting...", rc)
+            logger.warning("Disconnected from MQTT (rc=%s, flags=%s), reconnecting...", rc, disconnect_flags)
         self.connected = False
         self.connection_event.clear()
     
